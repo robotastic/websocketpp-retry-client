@@ -12,13 +12,13 @@
 
 namespace websocketpp
 {
-	
+
 /// The type and function signature of a retry configure handler
 /**
  * The configure handler is triggered before copying over all the connection
  * specific configurations to the new connection it creates, via the
  * get_connection(...) method
- * 
+ *
  * The configure handler will be called as long as the config has it's retry
  * flag set to true and has not exceeded the max_attempts
  */
@@ -44,42 +44,42 @@ public:
 		, m_max_attempts(0)
 	{
 	}
-	
+
 	void set_configure_handler(configure_handler h)
 	{
 		lib::lock_guard<lib::mutex> scoped_lock_guard(m_mutex);
 		m_configure_con_handler = h;
 	}
-	
+
 	configure_handler get_configure_handler()
 	{
 		lib::lock_guard<lib::mutex> scoped_lock_guard(m_mutex);
 		return m_configure_con_handler;
 	}
-	
+
 	bool is_configure_handler_set()
 	{
 		lib::lock_guard<lib::mutex> scoped_lock_guard(m_mutex);
 		return bool(m_configure_con_handler);
 	}
-	
+
 	/// An optional ID that the user can use to track the connecting thread
 	lib::atomic<int> m_handle_id;
-	
+
 	/// A flag that is interpreted in our retry thread allowing the user to stop retrying
 	lib::atomic<bool> m_retry;
-	
+
 	/// Amount of time (in milliseconds) between each retry attempt
 	lib::atomic<unsigned int> m_retry_delay;
-	
+
 	/// Tracks the number of connection attempts for this connection. Reset to 1 upon successful connection
 	lib::atomic<unsigned int> m_attempt_count;
-	
-	/// Stops attempting to connect after X attempts. 0 = Infinite. 
+
+	/// Stops attempting to connect after X attempts. 0 = Infinite.
 	lib::atomic<unsigned int> m_max_attempts;
 private:
 	lib::mutex m_mutex;
-	
+
 	/// The functor used when a new connection is made in our retry thread
 	configure_handler m_configure_con_handler;
 };
@@ -129,14 +129,14 @@ public:
     {
         endpoint_type::m_alog.write(log::alevel::devel, "retry_client_endpoint constructor");
     }
-    
+
     ~retry_client_endpoint()
     {
 	}
-	
+
 	/// These set methods will Hide our endpoint.hpp methods
 	/// This is done because they aren't virtual and we cannot override
-	
+
 
     /// Get a new connection (string version)
     /**
@@ -159,7 +159,7 @@ public:
 
         return get_connection(location, ec);
     }
-    
+
     /// Get a new connection
     /**
      * Creates and returns a pointer to a new connection to the given URI
@@ -186,7 +186,7 @@ public:
         }
 
         con->set_uri(location);
-        
+
         ec = lib::error_code();
         return con;
     }
@@ -213,7 +213,7 @@ public:
 			// and that they don't want to configure anything additional
 			throw websocketpp::exception("retry_client_endpoint.hpp: no configure_handler has been set");
 		}
-		
+
 		transport_type::async_connect(
             lib::static_pointer_cast<transport_con_type>(con),
             con->get_uri(),
@@ -225,7 +225,7 @@ public:
             )
         );
     }
-    
+
     /// Initiates a retry on close
     /**
      * The user uses this method as a helper when they want to attempt to connect on a
@@ -233,7 +233,7 @@ public:
      * passing in the old ptr, and a fresh new connection ptr that they have gotten
      * from the get_connection method. This method will reset the retry_count, but all
      * other settings remain the same
-     * 
+     *
      * @param
      */
     void connect(connection_ptr old_con, connection_ptr new_con)
@@ -248,7 +248,7 @@ public:
 			throw websocketpp::exception("retry_client_endpoint.hpp: old_connection settings indicate to NOT attempt a retry");
 		}
 	}
-    
+
 private:
 	void swap_and_configure_retry_settings(connection_ptr old_con, connection_ptr new_con)
 	{
@@ -262,19 +262,19 @@ private:
 		new_con->m_max_attempts = old_con->m_max_attempts.load();
 		new_con->set_configure_handler(old_con->get_configure_handler());
 	}
-	
+
 	bool attempt_retry(connection_ptr con)
 	{
 		return con->m_retry == true && (con->m_max_attempts == 0 || con->m_attempt_count < con->m_max_attempts);
 	}
-	
+
     void handle_connect(connection_ptr con, lib::error_code const & ec) {
         if (ec) {
             con->terminate(ec);
 
             endpoint_type::m_elog.write(log::elevel::rerror,
                     "handle_connect error: "+ec.message());
-                    
+
             // Now we try to connect again if configured that way.
             if(attempt_retry(con))
             {
@@ -282,12 +282,12 @@ private:
 #ifdef _WEBSOCKETPP_CPP11_THREAD_
 				std::this_thread::sleep_for(std::chrono::milliseconds(con->m_retry_delay));
 #else
-				boost::this_thread::sleep_for(boost::posix_time::milliseconds(con->m_retry_delay));
+				boost::this_thread::sleep_for(boost::chrono::milliseconds(con->m_retry_delay));
 #endif
-				
+
 				lib::error_code thread_ec;
 				connection_ptr new_con = this->get_connection(con->get_uri(), thread_ec);
-				
+
 				if(thread_ec)
 				{
 					endpoint_type::m_elog.write(log::elevel::rerror,
@@ -296,7 +296,7 @@ private:
 				else
 				{
 					swap_and_configure_retry_settings(con, new_con);
-					
+
 					if(attempt_retry(new_con))
 					{
 						// Increment our attempt count
@@ -319,7 +319,7 @@ private:
         } else {
             endpoint_type::m_alog.write(log::alevel::connect,
                 "Successful connection");
-            
+
             con->m_attempt_count = 1;
             con->start();
         }
